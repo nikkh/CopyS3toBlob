@@ -16,6 +16,7 @@ namespace CopyS3toBlob
         static void Main()
         {
             Console.WriteLine("CopyS3toBlob job has started...");
+            Console.WriteLine("CopyS2toBlob job has completed sucessfully");
         }
     }
 }
