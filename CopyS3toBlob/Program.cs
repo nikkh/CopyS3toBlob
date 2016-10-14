@@ -15,8 +15,8 @@ namespace CopyS3toBlob
     {
         static IAmazonS3 client;
         static string bucketName = "nh-usage-1";
-
-
+        const string fileIdentifier = "aws-billing-detailed-line-items-with-resources-and-tags";
+        static int count;
         // Please set the following connection strings in app.config for this WebJob to run:
         // AzureWebJobsDashboard and AzureWebJobsStorage
         static void Main()
@@ -25,7 +25,7 @@ namespace CopyS3toBlob
             using (client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
             {
                 Console.WriteLine("Listing objects stored in bucket: "+bucketName);
-
+                count = 0;
 
                 try
                 {
@@ -38,17 +38,19 @@ namespace CopyS3toBlob
                     do
                     {
                         response = client.ListObjectsV2(request);
-
+                       
                         // Process response.
                         foreach (S3Object entry in response.S3Objects)
                         {
-                            if (entry.Key.ToLower().Contains("zip"))
+                            if (entry.Key.Contains(fileIdentifier))
                             {
-                                Console.WriteLine("key = {0} size = {1}",
-                                entry.Key, entry.Size);
+                                count++;
+                                Console.WriteLine("key = {0} size = {1}, Date={2}",
+                                entry.Key, entry.Size, entry.LastModified);
                             }
                             
                         }
+                        
                         
                         //Console.WriteLine("Next Continuation Token: {0}", response.NextContinuationToken);
                         request.ContinuationToken = response.NextContinuationToken;
@@ -74,10 +76,10 @@ namespace CopyS3toBlob
                 }
 
 
-             
-               
+
+                Console.WriteLine("Identified {0} billing files", count);
                 Console.WriteLine("CopyS2toBlob job has completed sucessfully");
-                Console.ReadKey();
+                
             }
         }
     }
