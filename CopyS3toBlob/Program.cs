@@ -10,6 +10,7 @@ using System.IO;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure;
 using Microsoft.WindowsAzure.Storage.Blob;
+using System.IO.Compression;
 
 namespace CopyS3toBlob
 {
@@ -96,7 +97,7 @@ namespace CopyS3toBlob
 
 
 
-                Console.WriteLine("Identified {0} billing files", count);
+                Console.WriteLine("Identified {0} billing zip files", count);
                 WriteToBlobStorage(files);
                 Console.WriteLine("CopyS2toBlob job has completed sucessfully");
                 
@@ -123,20 +124,48 @@ namespace CopyS3toBlob
                         using (Stream responseStream = response.ResponseStream)
                         
                         {
+                                                      
+                            using (ZipArchive archive = new ZipArchive(responseStream, ZipArchiveMode.Read))
+                            {
+                                foreach (ZipArchiveEntry entry in archive.Entries)
+                                {
+                                    Console.WriteLine("{0} was discovered in the archive", entry.Name);
+                                    using (Stream entryStream = entry.Open())
+                                    {
+                                        var blob = azureClient.GetContainerReference(azureStorageContainerName).GetBlockBlobReference(entry.Name);
+                                        if (!blob.Exists())
+                                        {
+                                            blob.UploadFromStream(entryStream);
+                                            Console.WriteLine("Blob {1} did not exist and was created", blob.Uri);
+                                        }
+                                        else
+                                        {
+                                            if (blob.Properties.Length != entry.Length)
+                                            {
+                                                Console.WriteLine("Blob {1} was a different size and was refreshed", blob.Uri);
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("{0} is identical and will skipped", entry.Name);
+                                            }
+                                        }
+
+                                    }
+                                }
+
+                            }
                             
-                            var blob = azureClient.GetContainerReference(azureStorageContainerName).GetBlockBlobReference(item.Key);
-                            blob.UploadFromStream(responseStream);
-                            Console.WriteLine("Copied file {0} to {1}", item.Key, blob.Uri);
                             
                         }
 
                     }
                 }
 
-                Console.WriteLine("File {0} was copied sucessfully", item.Key);
+                Console.WriteLine("File {0} was processed sucessfully", item.Key);
                 
             }
-            Console.WriteLine(">>> Start copy files to blob storage");
+            Console.WriteLine(">>> End copy files to blob storage");
+            Console.ReadKey();
         }
     }
 }
