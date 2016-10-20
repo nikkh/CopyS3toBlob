@@ -136,7 +136,7 @@ namespace CopyS3toBlob
                                         if (!blob.Exists())
                                         {
                                             blob.UploadFromStream(entryStream);
-                                            Console.WriteLine("Blob {1} did not exist and was created", blob.Uri);
+                                            Console.WriteLine("Blob {0} did not exist and was created", blob.Uri.ToString());
                                         }
                                         else
                                         {
@@ -165,7 +165,7 @@ namespace CopyS3toBlob
                 
             }
             Console.WriteLine(">>> End copy files to blob storage");
-            Console.ReadKey();
+            //Console.ReadKey();
         }
     }
 }
