@@ -19,31 +19,33 @@ namespace CopyS3toBlob
     {
         static IAmazonS3 client;
         static Dictionary<string, S3Object> files;
-        static string bucketName = "nh-usage-1";
-        static string azureStorageContainerName = "awsreports";
-        const string fileIdentifier = "aws-billing-detailed-line-items-with-resources-and-tags";
+        static string azureStorageContainerName;
+        static string billingFileIdentifier;
         static int count;
-        
         static CloudBlobClient azureClient;
         static CloudStorageAccount azureStorageAccount;
+        static string AWSBucketName;
 
         // Please set the following connection strings in app.config for this WebJob to run:
         // AzureWebJobsDashboard and AzureWebJobsStorage
         static void Main()
         {
-            
+            AWSBucketName = CloudConfigurationManager.GetSetting("aws_bucket_name");
+            azureStorageContainerName = CloudConfigurationManager.GetSetting("AzureStorageContainerName");
+            billingFileIdentifier = CloudConfigurationManager.GetSetting("aws_billing_file_identifier");
+            azureStorageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("AzureStorageConnectionString"));
             files = new Dictionary<string, S3Object>();
             Console.WriteLine("CopyS3toBlob job has started...");
             using (client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
             {
-                Console.WriteLine("Listing objects stored in bucket: "+bucketName);
+                Console.WriteLine("Listing objects stored in bucket: "+AWSBucketName);
                 count = 0;
 
                 try
                 {
                     ListObjectsV2Request request = new ListObjectsV2Request
                     {
-                        BucketName = bucketName,
+                        BucketName = AWSBucketName,
                         MaxKeys = 10
                     };
                     ListObjectsV2Response response;
@@ -54,7 +56,7 @@ namespace CopyS3toBlob
                         // Process response.
                         foreach (S3Object entry in response.S3Objects)
                         {
-                            if (entry.Key.Contains(fileIdentifier))
+                            if (entry.Key.Contains(billingFileIdentifier))
                             {
                                 count++;
                                 Console.WriteLine("key = {0} size = {1}, Date={2}",
@@ -106,16 +108,17 @@ namespace CopyS3toBlob
 
         private static void WriteToBlobStorage(Dictionary<string, S3Object> files)
         {
-            azureStorageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("AzureStorageConnectionString")); ;
+            
             azureClient = azureStorageAccount.CreateCloudBlobClient();
-            Console.WriteLine(">>> Start copy files to blob storage");
+            
             foreach (var item in files)
             {
+                Console.WriteLine("Processing billing archive {0}", item.Key);
                 using (client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
                 {
                     GetObjectRequest request = new GetObjectRequest
                     {
-                        BucketName = bucketName,
+                        BucketName = AWSBucketName,
                         Key = item.Key
                     };
                     
@@ -127,6 +130,11 @@ namespace CopyS3toBlob
                                                       
                             using (ZipArchive archive = new ZipArchive(responseStream, ZipArchiveMode.Read))
                             {
+                                Console.WriteLine("Opening billing archive..");
+                                if (archive.Entries.Count == 0)
+                                {
+                                    Console.WriteLine("There were no entries in the billing archive!");
+                                }
                                 foreach (ZipArchiveEntry entry in archive.Entries)
                                 {
                                     Console.WriteLine("{0} was discovered in the archive", entry.Name);
@@ -142,7 +150,7 @@ namespace CopyS3toBlob
                                         {
                                             if (blob.Properties.Length != entry.Length)
                                             {
-                                                Console.WriteLine("Blob {1} was a different size and was refreshed", blob.Uri);
+                                                Console.WriteLine("Blob {0} was a different size and was refreshed", blob.Uri);
                                             }
                                             else
                                             {
@@ -161,11 +169,11 @@ namespace CopyS3toBlob
                     }
                 }
 
-                Console.WriteLine("File {0} was processed sucessfully", item.Key);
+                Console.WriteLine("Billing archive {0} was processed sucessfully", item.Key);
                 
             }
-            Console.WriteLine(">>> End copy files to blob storage");
-            //Console.ReadKey();
+            
+            Console.ReadKey();
         }
     }
 }
