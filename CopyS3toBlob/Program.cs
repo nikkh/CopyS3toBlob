@@ -7,6 +7,9 @@ using Microsoft.Azure.WebJobs;
 using Amazon.S3;
 using Amazon.S3.Model;
 using System.IO;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure;
+using Microsoft.WindowsAzure.Storage.Blob;
 
 namespace CopyS3toBlob
 {
@@ -14,13 +17,21 @@ namespace CopyS3toBlob
     class Program
     {
         static IAmazonS3 client;
+        static Dictionary<string, S3Object> files;
         static string bucketName = "nh-usage-1";
+        static string azureStorageContainerName = "awsreports";
         const string fileIdentifier = "aws-billing-detailed-line-items-with-resources-and-tags";
         static int count;
+        
+        static CloudBlobClient azureClient;
+        static CloudStorageAccount azureStorageAccount;
+
         // Please set the following connection strings in app.config for this WebJob to run:
         // AzureWebJobsDashboard and AzureWebJobsStorage
         static void Main()
         {
+            
+            files = new Dictionary<string, S3Object>();
             Console.WriteLine("CopyS3toBlob job has started...");
             using (client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
             {
@@ -47,6 +58,14 @@ namespace CopyS3toBlob
                                 count++;
                                 Console.WriteLine("key = {0} size = {1}, Date={2}",
                                 entry.Key, entry.Size, entry.LastModified);
+                                S3Object theFile = new S3Object();
+                                theFile.BucketName = entry.BucketName;
+                                theFile.ETag = entry.ETag;
+                                theFile.LastModified = entry.LastModified;
+                                theFile.Owner = entry.Owner;
+                                theFile.Size = entry.Size;
+                                theFile.StorageClass = entry.StorageClass;
+                                files.Add(entry.Key, theFile);
                             }
                             
                         }
@@ -78,9 +97,46 @@ namespace CopyS3toBlob
 
 
                 Console.WriteLine("Identified {0} billing files", count);
+                WriteToBlobStorage(files);
                 Console.WriteLine("CopyS2toBlob job has completed sucessfully");
                 
             }
+        }
+
+        private static void WriteToBlobStorage(Dictionary<string, S3Object> files)
+        {
+            azureStorageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("AzureStorageConnectionString")); ;
+            azureClient = azureStorageAccount.CreateCloudBlobClient();
+            Console.WriteLine(">>> Start copy files to blob storage");
+            foreach (var item in files)
+            {
+                using (client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
+                {
+                    GetObjectRequest request = new GetObjectRequest
+                    {
+                        BucketName = bucketName,
+                        Key = item.Key
+                    };
+                    
+                    using (GetObjectResponse response = client.GetObject(request))
+                    {
+                        using (Stream responseStream = response.ResponseStream)
+                        
+                        {
+                            
+                            var blob = azureClient.GetContainerReference(azureStorageContainerName).GetBlockBlobReference(item.Key);
+                            blob.UploadFromStream(responseStream);
+                            Console.WriteLine("Copied file {0} to {1}", item.Key, blob.Uri);
+                            
+                        }
+
+                    }
+                }
+
+                Console.WriteLine("File {0} was copied sucessfully", item.Key);
+                
+            }
+            Console.WriteLine(">>> Start copy files to blob storage");
         }
     }
 }
