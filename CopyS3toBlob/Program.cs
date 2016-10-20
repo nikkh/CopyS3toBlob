@@ -173,7 +173,7 @@ namespace CopyS3toBlob
                 
             }
             
-            Console.ReadKey();
+            //Console.ReadKey();
         }
     }
 }
