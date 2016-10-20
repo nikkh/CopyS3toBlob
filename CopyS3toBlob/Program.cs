@@ -95,6 +95,7 @@ namespace CopyS3toBlob
                          "Error occurred. Message:'{0}' when listing objects",
                          amazonS3Exception.Message);
                     }
+                    throw amazonS3Exception;
                 }
 
 
