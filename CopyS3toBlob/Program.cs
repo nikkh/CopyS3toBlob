@@ -151,6 +151,8 @@ namespace CopyS3toBlob
                                         {
                                             if (blob.Properties.Length != entry.Length)
                                             {
+                                                blob.Delete();
+                                                blob.UploadFromStream(entryStream);
                                                 Console.WriteLine("Blob {0} was a different size and was refreshed", blob.Uri);
                                             }
                                             else
