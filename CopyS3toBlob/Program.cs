@@ -25,6 +25,7 @@ namespace CopyS3toBlob
         static int count;
         static CloudBlobClient azureClient;
         static CloudStorageAccount azureStorageAccount;
+        static bool interactiveMode = false;
       
 
         // Please set the following connection strings in app.config for this WebJob to run:
@@ -40,11 +41,17 @@ namespace CopyS3toBlob
             awsSettings = JsonConvert.DeserializeObject<AwsSettings>(AWS_SETTINGS);
             azureStorageAccount = CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("AzureStorageConnectionString"));
             azureStorageContainerName = CloudConfigurationManager.GetSetting("AzureStorageContainerName");
+            string runMode = CloudConfigurationManager.GetSetting("runMode");
+            if (runMode == "INTERACTIVE")
+            {
+                interactiveMode = true;
+            }
             #endregion
 
             Console.WriteLine("CopyS3toBlob: {0}.", awsSettings.Description);
 
-            
+            azureClient = azureStorageAccount.CreateCloudBlobClient();
+            azureClient.GetContainerReference(azureStorageContainerName).CreateIfNotExists();
 
             // For each account in AwsSettings
             foreach (var account in awsSettings.Accounts)
@@ -142,7 +149,7 @@ namespace CopyS3toBlob
 
             
             Console.WriteLine("CopyS2toBlob job has completed sucessfully");
-            Console.ReadKey();
+            if (interactiveMode) Console.ReadKey();
         }
 
         private static bool FileIsRequired(string fileName, List<string> patterns)
@@ -176,7 +183,7 @@ namespace CopyS3toBlob
         private static void WriteToBlobStorage(BucketBlobPackage package)
         {
 
-            azureClient = azureStorageAccount.CreateCloudBlobClient();
+            
 
             foreach (var item in package.FileInfo)
             {
